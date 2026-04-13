@@ -1,65 +1,165 @@
-import Image from "next/image";
+// src/app/page.tsx
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
+import { AnimatePresence } from 'framer-motion';
+
+import { LoadingState } from '@/app/components/LoadingState';
+import { ToolBar } from '@/app/components/ToolBar';
+import { ImportButton } from '@/app/components/ImportButton';
+
+import Papa from "papaparse";
+import { Header } from '@/app/components/Header';
+import { DataTable } from '@/app/components/DataTable';
+import { FloatingInspector } from '@/app/components/FloatingInspector';
+import { Footer } from '@/app/components/Footer';
+import { PlotCanvas } from '@/app/components/PlotCanvas';
+
+type DataRow = { [key: string]: any };
+
+export default function PlotApp() {
+  const [data, setData] = useState<DataRow[]>([]);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<DataRow | null>(null);
+  const [axis, setAxis] = useState({ x: "", y: "", color: "" });
+  
+  const [plotMode, setPlotMode] = useState<'zoom' | 'pan'>('zoom');
+  const plotRef = useRef<any>(null); // PlotlyインスタンスへのRef
+
+  const parseData = useCallback((text: string) => {
+    if (!text || text.trim() === "") return;
+
+    setIsLoading(true);
+    setSelectedRow(null);
+    // @ts-ignore
+    Papa.parse(text, {
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+      
+      complete: (results) => {
+        const headers = results.meta.fields || [];
+        const body = results.data as DataRow[];
+
+        setColumns(headers);
+        setData(body);
+
+        if (headers.length > 0 && body.length > 0) {
+            setAxis({
+              x: headers[0],
+              y: headers[1],
+              color: ""
+            });
+          }
+        
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 2000);
+      },
+      error: (error:Papa.ParseError) => {
+        console.error("PapaParse Error:", error);
+        setIsLoading(false);
+      }
+    });
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+    const pasteData = e.clipboardData.getData('text');
+    if (pasteData) parseData(pasteData);
+  }, [parseData]);
+
+  // Table
+  const columnHelper = createColumnHelper<DataRow>();
+  const tableColumns = useMemo(() => 
+    columns.map(col => columnHelper.accessor(col, {
+      header: col,
+      cell: info => (
+        <input 
+          className="bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-300 w-full px-3 py-1.5 font-mono text-[11px] text-slate-800"
+          value={info.getValue() ?? ""}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            const castedValue = newValue === "" ? null : !isNaN(Number(newValue)) ? Number(newValue) : newValue;
+            setData(old => old.map((row, index) => index === info.row.index ? { ...row, [col]: castedValue } : row));
+          }}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+      )
+    })), [columns, columnHelper]);
+
+  const table = useReactTable({
+    data, 
+    columns: tableColumns, 
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  const handleToolbarAction = (action: string) => {
+    if (!plotRef.current) return;
+    const Plotly = (window as any).Plotly; // グローバルPlotlyインスタンスを取得
+    const graphDiv = plotRef.current.el;
+
+    const xRange = graphDiv.layout.xaxis.range;
+    const yRange = graphDiv.layout.yaxis.range;
+    
+    switch(action) {
+      case 'pan': setPlotMode('pan'); break;
+      case 'zoom': setPlotMode('zoom'); break;
+      case 'zoomIn': 
+        Plotly.relayout(graphDiv, {
+          'xaxis.range': [xRange[0] + (xRange[1] - xRange[0]) * 0.1, xRange[1] - (xRange[1] - xRange[0]) * 0.1],
+          'yaxis.range': [yRange[0] + (yRange[1] - yRange[0]) * 0.1, yRange[1] - (yRange[1] - yRange[0]) * 0.1]
+        });
+        break;
+      case 'zoomOut': 
+        Plotly.relayout(graphDiv, {
+          'xaxis.range': [xRange[0] - (xRange[1] - xRange[0]) * 0.125, xRange[1] + (xRange[1] - xRange[0]) * 0.125],
+          'yaxis.range': [yRange[0] - (yRange[1] - yRange[0]) * 0.125, yRange[1] + (yRange[1] - yRange[0]) * 0.125]
+        });
+        break;
+      case 'reset': 
+        Plotly.relayout(graphDiv, { 'xaxis.autorange': true, 'yaxis.autorange': true }); 
+        break;
+      case 'download':
+        Plotly.downloadImage(graphDiv, {
+          format: 'png',
+          width: 1200,
+          height: 800,
+          filename: 'atomic_plot_export'
+        });
+        break;
+    }
+  };
+  
+  return (
+    <div 
+      className="h-screen flex flex-col bg-white text-slate-950 font-sans antialiased overflow-hidden" 
+      onPaste={handlePaste}
+    >  
+      <AnimatePresence>{isLoading && <LoadingState />}</AnimatePresence>
+      <Header title='Data Plot Studio'>
+        <ImportButton onUpload={parseData}>Import CSV</ImportButton>
+      </Header>
+
+      <main className="mt-4 pt-14 p-5 flex flex-col gap-5 h-screen">
+        <PlotCanvas 
+          data={data}
+          columns={columns}
+          axis={axis}
+          setAxis={setAxis}
+          plotMode={plotMode}
+          onPointClick={setSelectedRow}
+          plotRef={plotRef}
+        >
+          <ToolBar plotMode={plotMode} onAction={handleToolbarAction}/>
+        </PlotCanvas>
+        <DataTable table={table} dataLength={data.length}/>
       </main>
+      
+      <FloatingInspector selectedRow={selectedRow} onClose={() => setSelectedRow(null)}/>
+      <Footer />
     </div>
   );
 }
+
