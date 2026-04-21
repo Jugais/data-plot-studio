@@ -15,6 +15,7 @@ import { DataTable } from '@/app/components/DataTable';
 import { FloatingInspector } from '@/app/components/FloatingInspector';
 import { Footer } from '@/app/components/Footer';
 import { PlotCanvas } from '@/app/components/PlotCanvas';
+import { header } from 'framer-motion/client';
 
 type DataRow = { [key: string]: any };
 
@@ -38,7 +39,10 @@ export default function PlotApp() {
       header: true,
       dynamicTyping: true,
       skipEmptyLines: true,
-      
+      // transformHeader: (header) => {
+      //   return (header === null || header === undefined || header === "null")? "": header
+      // },
+
       complete: (results) => {
         const headers = results.meta.fields || [];
         const body = results.data as DataRow[];

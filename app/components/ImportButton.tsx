@@ -15,16 +15,44 @@ export const ImportButton = ({onUpload, children}: ButtonProps) => {
     if (!file) return;
     const reader = new FileReader();
     reader.addEventListener("load", (event) => {
-      const text = event.target?.result;
-      console.log("File loaded!");
-      if (typeof text === "string") onUpload(text);
+  //     const text = event.target?.result;
+      
+  //     if (typeof text === "string") onUpload(text);
+  //     if (fileInputRef.current) {
+  //       fileInputRef.current.value = "";
+  //     }
+  //   })
+  //   reader.readAsText(file);
+  // }
+        const result = event.target?.result;
+        if (!(result instanceof ArrayBuffer)) return;
 
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    })
-    reader.readAsText(file);
-  }
+        const uint8Array = new Uint8Array(result);
+
+        // 1. まずは UTF-8 としてデコードを試みる
+        // fatal: true を設定すると、文字化け（不正なバイト）がある場合にエラーを投げてくれる
+        const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+        let text;
+        
+        try {
+          text = utf8Decoder.decode(uint8Array);
+          console.log("Success: Decoded as UTF-8");
+        } catch (e) {
+          const sjisDecoder = new TextDecoder('shift-jis');
+          text = sjisDecoder.decode(uint8Array);
+          console.log("Fallback: Decoded as Shift-JIS (CP932)");
+        }
+
+        if (typeof text === "string") onUpload(text);
+        
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      });
+
+      reader.readAsArrayBuffer(file);
+    }
+
   return (
     <>
       <button 
