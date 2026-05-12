@@ -39,23 +39,31 @@ export const PlotCanvas: React.FC<PlotCanvasProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('gradient');
   // Plotlyに渡すデータを計算するロジック
   const getPlotData = () => {
+    
     if (data.length === 0 || !axis.x || !axis.y) return [];
 
-    // カテゴリカルモードの場合
+    // multiple mode
     if (viewMode === 'category' && axis.color) {
       // 1. 第3軸（color）に含まれるユニークなラベルを抽出
       const categories = Array.from(new Set(data.map(d => String(d[axis.color]))));
       
       // 2. カテゴリごとにトレースを作成
-      return categories.map(cat => ({
-        name: cat,
-        x: data.filter(d => String(d[axis.color]) === cat).map(d => d[axis.x]),
-        y: data.filter(d => String(d[axis.color]) === cat).map(d => d[axis.y]),
-        mode: 'markers',
-        type: 'scatter',
-        marker: { size: 10, opacity: 0.8, line: { color: 'white', width: 0.5 } },
-        text: cat, // hover
-      }));
+      return categories.map(cat => {
+        const filteredData = data.filter(d => String(d[axis.color]) === cat);
+        return {
+          name: cat,
+          x: filteredData.map(d => d[axis.x]),
+          y: filteredData.map(d => d[axis.y]),
+          mode: 'markers',
+          type: 'scattergl',
+          customdata: filteredData, // クリック時に行データを渡すためのカスタムデータ
+          marker: { 
+            size: 10, 
+            opacity: 0.8, 
+            line: { color: 'white', width: 0.5 }
+          },
+          text: cat, // hover
+      }});
     }
 
     // 単一のトレース
@@ -63,7 +71,8 @@ export const PlotCanvas: React.FC<PlotCanvasProps> = ({
       x: data.map(d => d[axis.x]),
       y: data.map(d => d[axis.y]),
       mode: 'markers',
-      type: 'scatter',
+      type: 'scattergl',
+      customdata: data,
       marker: { 
         color: axis.color ? data.map(d => d[axis.color]) : '#2563EB',
         size: 10,
@@ -163,7 +172,8 @@ export const PlotCanvas: React.FC<PlotCanvasProps> = ({
               style: { width: '100%', height: '100%' },
               useResizeHandler: true,
               onClick: (d: any) => {
-                if (d.points[0]) onPointClick(data[d.points[0].pointIndex]);
+                const row = d.points[0]?.customdata;
+                if (row) onPointClick(row);
               },
             } as any)} // ← ここで Props 全体を any として流し込む
           />

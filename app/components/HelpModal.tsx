@@ -10,9 +10,9 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-[540px] max-w-[95%] overflow-hidden border border-slate-200"
+        className="bg-white rounded-2xl shadow-2xl w-135 max-w-[95%] overflow-hidden border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -32,7 +32,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         {/* Content */}
         <div className="p-8 space-y-6 text-slate-600 overflow-y-auto max-h-[70vh]">
           <section className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">1</div>
+            <div className="shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">1</div>
             <div>
               <h3 className="font-bold text-slate-800 mb-1">Import Your Data</h3>
               <p className="text-sm leading-relaxed">
@@ -43,7 +43,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           </section>
 
           <section className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">2</div>
+            <div className="shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">2</div>
             <div>
               <h3 className="font-bold text-slate-800 mb-1">Data Grid Editing</h3>
               <p className="text-sm leading-relaxed">View your raw data in the interactive table. You can directly edit cell values, and the changes will reflect in your plots instantly.</p>
@@ -51,7 +51,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           </section>
 
           <section className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">3</div>
+            <div className="shrink-0 w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">3</div>
             <div>
               <h3 className="font-bold text-slate-800 mb-1">Visual Analytics</h3>
               <p className="text-sm leading-relaxed">Switch to the "Visualization" tab. Select your X and Y axes from the dropdown menus to generate high-quality charts.</p>

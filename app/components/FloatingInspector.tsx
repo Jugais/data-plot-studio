@@ -1,4 +1,6 @@
 // src/components/FloatingInspector.tsx
+"use client";
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, GripVertical } from 'lucide-react';
 
@@ -8,7 +10,8 @@ interface FloatingInspectorProps {
 }
 
 export const FloatingInspector = (
-	{selectedRow, onClose}: FloatingInspectorProps) => {
+	{selectedRow, onClose}: FloatingInspectorProps
+) => {
 		return (
 			<AnimatePresence>
 				{selectedRow && (

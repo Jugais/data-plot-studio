@@ -37,7 +37,7 @@ export const ToolBar = ({plotMode, onAction}: ToolBarProps) => {
 
       <div className="h-px w-6 bg-slate-200 my-1" />
 
-      <button onClick={() => onAction('download')} className={btnClass(false)} title="Save as PNG (No Grid)">
+      <button onClick={() => onAction('download')} className={btnClass(false)} title="Save as PNG">
         <Download size={18} />
       </button>
     </div>

@@ -94,8 +94,9 @@ export default function PlotApp() {
     })), [columns, columnHelper]);
 
   const table = useReactTable({
-    data, 
-    columns: tableColumns, 
+    data,
+    columns: tableColumns,
+    columnResizeMode: 'onChange',
     getCoreRowModel: getCoreRowModel(),
   });
 
@@ -146,7 +147,7 @@ export default function PlotApp() {
         <ImportButton onUpload={parseData}>Import CSV</ImportButton>
       </Header>
 
-      <main className="mt-4 pt-14 p-5 flex flex-col gap-5 h-screen">
+      <main className="mt-4 pt-14 p-5 flex flex-col gap-5 flex-1 overflow-auto">
         <PlotCanvas 
           data={data}
           columns={columns}
@@ -158,7 +159,7 @@ export default function PlotApp() {
         >
           <ToolBar plotMode={plotMode} onAction={handleToolbarAction}/>
         </PlotCanvas>
-        <DataTable table={table} dataLength={data.length}/>
+        <DataTable table={table} dataLength={data.length} selectedRow={selectedRow} />
       </main>
       
       <FloatingInspector selectedRow={selectedRow} onClose={() => setSelectedRow(null)}/>
