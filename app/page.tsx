@@ -12,7 +12,7 @@ import {
 import { AnimatePresence } from 'framer-motion';
 
 import { LoadingState } from '@/app/components/LoadingState';
-import { ToolBar } from '@/app/components/ToolBar';
+import { ToolBar, type PlotMode } from '@/app/components/ToolBar';
 import { ImportButton } from '@/app/components/ImportButton';
 import Papa from "papaparse";
 import { Header } from '@/app/components/Header';
@@ -24,7 +24,7 @@ import { PanelLayout, type Direction } from '@/app/components/PanelLayout';
 
 type DataRow = { [key: string]: any };
 
-const calcStats = (data: DataRow[], xKey: string, yKey: string) => {
+function calcStats(data: DataRow[], xKey: string, yKey: string) {
   const pairs = data
     .map(d => ({ x: Number(d[xKey]), y: Number(d[yKey]) }))
     .filter(p => isFinite(p.x) && isFinite(p.y));
@@ -48,10 +48,10 @@ const calcStats = (data: DataRow[], xKey: string, yKey: string) => {
  * - ただし最左列（index 0）が空の場合は `index` という名前にして行番号を注入
  * - 重複列名は `Name_2`, `Name_3` と連番を付与
  */
-const fixHeaders = (
+function fixHeaders(
   rawFields: string[],
   body: DataRow[]
-): { headers: string[]; data: DataRow[] } => {
+): { headers: string[]; data: DataRow[] } {
   const isBlank = (s: string | null | undefined) =>
     s === null || s === undefined || s.trim() === "" || s.trim().toLowerCase() === "null";
 
@@ -112,13 +112,14 @@ const fixHeaders = (
   return { headers: deduped, data: renamedBody };
 }
 
-const PlotApp = () => {
+export default function PlotApp() {
   const [data, setData] = useState<DataRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedRow, setSelectedRow] = useState<DataRow | null>(null);
+  const [selectedRows, setSelectedRows] = useState<DataRow[]>([]);
   const [axis, setAxis] = useState({ x: "", y: "", color: "" });
-  const [plotMode, setPlotMode] = useState<'zoom' | 'pan'>('zoom');
+  const [plotMode, setPlotMode] = useState<PlotMode>('select');
+  const [showGrid, setShowGrid] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [direction, setDirection] = useState<Direction>("vertical");
   const plotRef = useRef<any>(null);
@@ -137,7 +138,7 @@ const PlotApp = () => {
   const parseData = useCallback((text: string) => {
     if (!text || text.trim() === "") return;
     setIsLoading(true);
-    setSelectedRow(null);
+    setSelectedRows([]);
     // @ts-ignore
     Papa.parse(text, {
       header: true,
@@ -175,34 +176,49 @@ const PlotApp = () => {
       header: col,
       enableSorting: true,
       cell: info => {
+        const rowIndex = info.row.index;
+        // data から直接読む（info.getValue() は再レンダー時に stale になることがある）
         // eslint-disable-next-line react-hooks/rules-of-hooks
-        const [localValue, setLocalValue] = React.useState<string>(() => {
-          const v = info.getValue();
+        const externalValue = React.useMemo(() => {
+          const v = data[rowIndex]?.[col];
           return v === null || v === undefined ? "" : String(v);
-        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [data, rowIndex]);
+
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const [localValue, setLocalValue] = React.useState<string>(externalValue);
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const [isFocused, setIsFocused] = React.useState(false);
+
+        // フォーカス中は外部値で上書きしない
         // eslint-disable-next-line react-hooks/rules-of-hooks
         React.useEffect(() => {
-          const v = info.getValue();
-          setLocalValue(v === null || v === undefined ? "" : String(v));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [info.getValue()]);
+          if (!isFocused) setLocalValue(externalValue);
+        }, [externalValue, isFocused]);
+
+        const commit = () => {
+          const castedValue = localValue === "" ? null : !isNaN(Number(localValue)) ? Number(localValue) : localValue;
+          setData(old => old.map((row, idx) =>
+            idx === rowIndex ? { ...row, [col]: castedValue } : row
+          ));
+        };
 
         return (
           <input
             className="bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-300 w-full px-3 py-1.5 font-mono text-[11px] text-slate-800"
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}
-            onBlur={() => {
-              const castedValue = localValue === "" ? null : !isNaN(Number(localValue)) ? Number(localValue) : localValue;
-              setData(old => old.map((row, index) =>
-                index === info.row.index ? { ...row, [col]: castedValue } : row
-              ));
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => { setIsFocused(false); commit(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.currentTarget.blur(); }
+              if (e.key === "Escape") { setLocalValue(externalValue); e.currentTarget.blur(); }
             }}
           />
         );
       }
     })),
-  [columns, columnHelper]);
+  [columns, columnHelper, data]);
 
   const table = useReactTable({
     data,
@@ -215,14 +231,24 @@ const PlotApp = () => {
   });
 
   const handleToolbarAction = (action: string) => {
+    // モード切替はプロットがなくても受け付ける
+    if (action === 'pan' || action === 'select') {
+      const newMode = action as PlotMode;
+      setPlotMode(newMode);
+      if (plotRef.current?.el) {
+        const Plotly = (window as any).Plotly;
+        const dm = newMode === 'pan' ? 'pan' : 'zoom';
+        // dragmode だけ relayout — range には触れずズームスケールを維持
+        Plotly.relayout(plotRef.current.el, { dragmode: dm });
+      }
+      return;
+    }
     if (!plotRef.current) return;
     const Plotly = (window as any).Plotly;
     const graphDiv = plotRef.current.el;
     const xRange = graphDiv.layout.xaxis.range;
     const yRange = graphDiv.layout.yaxis.range;
     switch (action) {
-      case 'pan': setPlotMode('pan'); break;
-      case 'zoom': setPlotMode('zoom'); break;
       case 'zoomIn':
         Plotly.relayout(graphDiv, {
           'xaxis.range': [xRange[0] + (xRange[1] - xRange[0]) * 0.1, xRange[1] - (xRange[1] - xRange[0]) * 0.1],
@@ -235,8 +261,18 @@ const PlotApp = () => {
         }); break;
       case 'reset':
         Plotly.relayout(graphDiv, { 'xaxis.autorange': true, 'yaxis.autorange': true }); break;
+      case 'toggleGrid':
+        setShowGrid(prev => !prev);
+        break;
       case 'download':
-        Plotly.downloadImage(graphDiv, { format: 'png', width: 1200, height: 800, filename: 'atomic_plot_export' }); break;
+        // 表示中の状態をそのままダウンロード
+        Plotly.downloadImage(graphDiv, {
+          format: 'png',
+          width: 800,
+          height: 560,
+          filename: `plot_${axis.x}_${axis.y}`,
+        });
+        break;
     }
   };
 
@@ -261,24 +297,29 @@ const PlotApp = () => {
               axis={axis}
               setAxis={setAxis}
               plotMode={plotMode}
-              onPointClick={setSelectedRow}
+              onPointClick={(row) => setSelectedRows([row])}
+              onToggleSelect={(row) => {
+                setSelectedRows(prev =>
+                  prev.includes(row) ? prev.filter(r => r !== row) : [...prev, row]
+                );
+              }}
               plotRef={plotRef}
               stats={stats}
               onUpload={parseData}
+              selectedRows={selectedRows}
+              showGrid={showGrid}
             >
-              <ToolBar plotMode={plotMode} onAction={handleToolbarAction} />
+              <ToolBar plotMode={plotMode} showGrid={showGrid} onAction={handleToolbarAction} />
             </PlotCanvas>
           }
           tablePanel={
-            <DataTable table={table} dataLength={data.length} selectedRow={selectedRow} />
+            <DataTable table={table} dataLength={data.length} selectedRows={selectedRows} />
           }
         />
       </main>
 
-      <FloatingInspector selectedRow={selectedRow} onClose={() => setSelectedRow(null)} />
+      <FloatingInspector selectedRows={selectedRows} onClose={() => setSelectedRows([])} />
       <Footer />
     </div>
   );
 }
-
-export default PlotApp;
